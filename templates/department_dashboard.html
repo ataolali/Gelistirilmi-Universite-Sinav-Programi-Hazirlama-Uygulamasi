@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Bölüm Yetkilisi Paneli{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="sidebar">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link active" href="{{ url_for('dashboard') }}">
+                        <i class="fas fa-home"></i> Ana Sayfa
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('list_courses') }}">
+                        <i class="fas fa-book"></i> Dersler
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('programi_goruntule') }}">
+                        <i class="fas fa-calendar"></i> Sınav Programı
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-user-tie"></i> Bölüm Yetkilisi Paneli</h5>
+            </div>
+            <div class="card-body">
+                <p>Hoş geldiniz, {{ current_user.name or current_user.username }}!</p>
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h3><i class="fas fa-book text-primary"></i></h3>
+                                <h5>Dersler</h5>
+                                <a href="{{ url_for('list_courses') }}" class="btn btn-primary">Yönet</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h3><i class="fas fa-calendar text-info"></i></h3>
+                                <h5>Sınav Programı</h5>
+                                <a href="{{ url_for('programi_goruntule') }}" class="btn btn-info">Görüntüle</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

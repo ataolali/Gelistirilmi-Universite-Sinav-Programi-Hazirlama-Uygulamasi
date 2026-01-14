@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Öğrenci Paneli{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h5><i class="fas fa-user-graduate"></i> Öğrenci Paneli</h5>
+    </div>
+    <div class="card-body">
+        <p>Hoş geldiniz, {{ current_user.name or current_user.username }}!</p>
+        <a href="{{ url_for('programi_goruntule') }}" class="btn btn-primary">
+            <i class="fas fa-calendar"></i> Sınav Programımı Görüntüle
+        </a>
+    </div>
+</div>
+{% endblock %}

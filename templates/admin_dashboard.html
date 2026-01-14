@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Yönetici Paneli{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="sidebar">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link active" href="{{ url_for('dashboard') }}">
+                        <i class="fas fa-home"></i> Ana Sayfa
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('manage_faculties') }}">
+                        <i class="fas fa-university"></i> Fakülteler
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('manage_departments') }}">
+                        <i class="fas fa-building"></i> Bölümler/Programlar
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('list_courses') }}">
+                        <i class="fas fa-book"></i> Dersler
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('manage_classrooms') }}">
+                        <i class="fas fa-door-open"></i> Derslikler
+                    </a>
+                </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('programi_goruntule') }}">
+                            <i class="fas fa-calendar"></i> Sınav Programı
+                        </a>
+                    </li>
+            </ul>
+        </div>
+    </div>
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-tachometer-alt"></i> Yönetici Paneli</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h3><i class="fas fa-book text-primary"></i></h3>
+                                <h5>Dersler</h5>
+                                <p class="text-muted">Tüm dersleri yönetin</p>
+                                <a href="{{ url_for('list_courses') }}" class="btn btn-primary">Yönet</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h3><i class="fas fa-door-open text-success"></i></h3>
+                                <h5>Derslikler</h5>
+                                <p class="text-muted">Derslikleri yönetin</p>
+                                <a href="{{ url_for('manage_classrooms') }}" class="btn btn-success">Yönet</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h3><i class="fas fa-calendar-check text-info"></i></h3>
+                                <h5>Planlama</h5>
+                                <p class="text-muted">Otomatik planlama yapın</p>
+                                <button class="btn btn-info" onclick="startPlanning()">Planla</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <h5>Hızlı İşlemler</h5>
+                        <form method="POST" action="{{ url_for('import_pdfs') }}" class="mt-3">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fas fa-file-pdf"></i> PDF'lerden Veri Yükle
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function startPlanning() {
+    if (confirm('Otomatik planlama başlatılsın mı? Mevcut planlama silinecektir.')) {
+        fetch('{{ url_for("auto_planning") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            }
+            throw new Error('Planlama hatası');
+        })
+        .then(data => {
+            if (data.success) {
+                alert('Planlama başarıyla tamamlandı! ' + data.scheduled + ' ders planlandı.');
+                window.location.href = '{{ url_for("programi_goruntule") }}';
+            } else {
+                alert('Hata: ' + (data.error || 'Bilinmeyen hata'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Planlama sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+        });
+    }
+}
+</script>
+{% endblock %}

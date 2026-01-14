@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-clock"></i> Müsaitlik Durumu Belirle</h4>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        Sayın <strong>{{ current_user.name }}</strong>, sınav programı oluşturulurken dikkate alınması için 
+                        üniversitede <u>bulunamayacağınız</u> günleri aşağıdan işaretleyiniz.
+                    </p>
+                    
+                    <hr>
+
+                    {% if blocked_days %}
+                        <div class="alert alert-warning d-flex align-items-center" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <div>
+                                <strong>Seçili Kısıtlamalar:</strong> Şu an 
+                                {% for d in blocked_days %}
+                                    <u>{{ day_names[d] }}</u>{{ "," if not loop.last }}
+                                {% endfor %}
+                                günleri için "Müsait Değil" işaretlediniz.
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-success d-flex align-items-center" role="alert">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <div>
+                                <strong>Mevcut Durum:</strong> Herhangi bir kısıtlamanız yok. Tüm sınav günleri için müsaitsiniz.
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    <form method="POST" class="mt-4">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold mb-3">Müsait Olunmayan Günler (Birden fazla seçebilirsiniz):</label>
+                            
+                            <div class="list-group">
+                                <label class="list-group-item">
+                                    <input class="form-check-input me-1" type="checkbox" name="unavailable_days" value="0" 
+                                    {% if 0 in blocked_days %}checked{% endif %}>
+                                    Pazartesi (5 Ocak / 12 Ocak)
+                                </label>
+                                
+                                <label class="list-group-item">
+                                    <input class="form-check-input me-1" type="checkbox" name="unavailable_days" value="1" 
+                                    {% if 1 in blocked_days %}checked{% endif %}>
+                                    Salı (6 Ocak / 13 Ocak)
+                                </label>
+                                
+                                <label class="list-group-item">
+                                    <input class="form-check-input me-1" type="checkbox" name="unavailable_days" value="2" 
+                                    {% if 2 in blocked_days %}checked{% endif %}>
+                                    Çarşamba (7 Ocak / 14 Ocak)
+                                </label>
+                                
+                                <label class="list-group-item">
+                                    <input class="form-check-input me-1" type="checkbox" name="unavailable_days" value="3" 
+                                    {% if 3 in blocked_days %}checked{% endif %}>
+                                    Perşembe (8 Ocak / 15 Ocak)
+                                </label>
+                                
+                                <label class="list-group-item">
+                                    <input class="form-check-input me-1" type="checkbox" name="unavailable_days" value="4" 
+                                    {% if 4 in blocked_days %}checked{% endif %}>
+                                    Cuma (9 Ocak / 16 Ocak)
+                                </label>
+                            </div>
+                            
+                            <div class="form-text mt-2">İşaretlediğiniz günlere sınavlarınız <u>konulmayacaktır</u>.</div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-save"></i> Değişiklikleri Kaydet
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
