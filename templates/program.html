@@ -3,9 +3,9 @@
 {% block title %}Sınav Programı{% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5><i class="fas fa-calendar"></i> Sınav Programı</h5>
+<div class="card shadow-sm">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-calendar-alt"></i> Sınav Programı</h5>
         <div>
             <a href="{{ url_for('cikti_al', format_type='pdf') }}" class="btn btn-danger btn-sm">
                 <i class="fas fa-file-pdf"></i> PDF İndir
@@ -15,51 +15,64 @@
             </a>
         </div>
     </div>
-    <div class="card-body">
+    
+    <div class="card-body p-0">
         {% if schedules %}
         <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead>
+            <table class="table table-striped table-hover mb-0" style="vertical-align: middle;">
+                <thead class="table-dark">
                     <tr>
-                        <th>Tarih</th>
-                        <th>Saat</th>
-                        <th>Ders Kodu</th>
-                        <th>Ders Adı</th>
-                        <th>Derslik</th>
-                        <th>Ek Derslikler</th>
-                        <th>Öğretim Üyesi</th>
+                        <th style="width: 10%">Tarih</th>
+                        <th style="width: 10%">Saat</th>
+                        <th style="width: 15%">Ders Kodları</th>
+                        <th style="width: 25%">Ders Adı</th>
+                        <th style="width: 10%">Derslik</th>
+                        <th style="width: 15%">Ek Derslikler</th>
+                        <th style="width: 15%">Öğretim Üyesi</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for schedule in schedules|sort(attribute='exam_date')|sort(attribute='start_time') %}
+                    {% for item in schedules %}
                     <tr>
-                        <td>{{ schedule.exam_date.strftime('%d.%m.%Y') }}</td>
-                        <td>{{ schedule.start_time.strftime('%H:%M') }} - {{ schedule.end_time.strftime('%H:%M') }}</td>
-                        <td>{{ schedule.course.code }}</td>
-                        <td>{{ schedule.course.name }}</td>
-                        <td>{{ schedule.classroom.name }}</td>
+                        <td class="fw-bold">{{ item.date.strftime('%d.%m.%Y') }}</td>
+                        
                         <td>
-                            {% if schedule.additional_classrooms %}
-                                {% set additional = schedule.additional_classrooms|from_json %}
-                                {% for room in additional %}
-                                    {{ room.name }}{% if not loop.last %}, {% endif %}
-                                {% endfor %}
+                            <span class="badge bg-light text-dark border">
+                                {{ item.time.strftime('%H:%M') }}
+                            </span>
+                        </td>
+                        
+                        <td>
+                            {% for code in item.course_codes_str.split(',') %}
+                                <span class="badge bg-info text-dark mb-1">{{ code.strip() }}</span>
+                            {% endfor %}
+                        </td>
+                        
+                        <td class="fw-bold text-primary">{{ item.course_name }}</td>
+                        <td><span class="badge bg-secondary">{{ item.classroom.name }}</span></td>
+                        
+                        <td>
+                            {% if item.additional_classrooms %}
+                                <span class="text-danger small fw-bold">{{ item.additional_classrooms }}</span>
                             {% else %}
-                                -
+                                <span class="text-muted small">-</span>
                             {% endif %}
                         </td>
-                        <td>{{ schedule.teacher.name if schedule.teacher else '-' }}</td>
+                        
+                        <td><small>{{ item.teacher.name if item.teacher else '-' }}</small></td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        
+        <div class="card-footer text-muted small text-end">
+            Toplam {{ schedules|length }} sınav oturumu planlandı.
+        </div>
         {% else %}
-        <div class="alert alert-info">
-            <i class="fas fa-info-circle"></i> Henüz sınav programı oluşturulmamış. 
-            {% if current_user.is_admin() or current_user.is_department_head() %}
-            <a href="{{ url_for('dashboard') }}">Otomatik planlama</a> yaparak başlayabilirsiniz.
-            {% endif %}
+        <div class="text-center p-5">
+            <h5>Henüz Program Oluşturulmadı</h5>
+            <p>Lütfen Yönetici panelinden "Planla" butonuna basınız.</p>
         </div>
         {% endif %}
     </div>

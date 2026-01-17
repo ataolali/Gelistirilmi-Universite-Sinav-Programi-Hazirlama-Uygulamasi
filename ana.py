@@ -7,6 +7,7 @@ from modeller import db, User, Faculty, Department, Course, CourseStudent, Class
 from datetime import datetime, time, date, timedelta
 import os
 import json
+import unidecode
 
 # Excel modülünü çağırıyoruz
 from excel_ayiklayici import import_all_data
@@ -32,28 +33,21 @@ def from_json_filter(value):
     except:
         return []
 
-# --- Yardımcı Fonksiyon: Varsayılanları Oluştur ---
 def ensure_defaults():
-    """Derslerin eklenebilmesi için varsayılan Fakülte ve Bölüm oluşturur."""
-    # 1. Fakülte Var mı?
     fac = Faculty.query.first()
     if not fac:
         fac = Faculty(name="Mühendislik ve Doğa Bilimleri", code="MDBF")
         db.session.add(fac)
         db.session.commit()
-        print("✅ Varsayılan Fakülte oluşturuldu.")
     
-    # 2. Bölüm Var mı?
     dept = Department.query.first()
     if not dept:
         dept = Department(name="Genel Mühendislik", code="GENEL", faculty_id=fac.id)
         db.session.add(dept)
         db.session.commit()
-        print("✅ Varsayılan Bölüm oluşturuldu.")
     
     return dept.id
 
-# Ana sayfa
 @app.route('/')
 def index():
     if current_user.is_authenticated:
@@ -81,16 +75,11 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    if current_user.is_admin():
-        return render_template('admin_dashboard.html')
-    elif current_user.is_department_head():
-        return render_template('department_dashboard.html')
-    elif current_user.is_teacher():
-        return render_template('teacher_dashboard.html')
-    else:
-        return render_template('student_dashboard.html')
+    if current_user.is_admin(): return render_template('admin_dashboard.html')
+    elif current_user.is_department_head(): return render_template('department_dashboard.html')
+    elif current_user.is_teacher(): return render_template('teacher_dashboard.html')
+    else: return render_template('student_dashboard.html')
 
-# Admin: Fakülte/Bölüm yönetimi
 @app.route('/admin/faculties', methods=['GET', 'POST'])
 @login_required
 def manage_faculties():
@@ -113,7 +102,6 @@ def manage_departments():
         return redirect(url_for('manage_departments'))
     return render_template('manage_departments.html', departments=Department.query.all(), faculties=Faculty.query.all())
 
-# Ders yönetimi
 @app.route('/courses', methods=['GET'])
 @login_required
 def list_courses():
@@ -131,15 +119,13 @@ def add_course():
         db.session.add(Course(
             code=request.form.get('code'), name=request.form.get('name'), department_id=request.form.get('department_id'),
             instructor_id=request.form.get('instructor_id') or None, exam_duration=int(request.form.get('exam_duration', 90)),
-            exam_type=request.form.get('exam_type', 'yazılı'), has_exam=request.form.get('has_exam') == 'on',
-            special_classroom=request.form.get('special_classroom') or None, special_duration=int(request.form.get('special_duration')) if request.form.get('special_duration') else None
+            exam_type=request.form.get('exam_type', 'yazılı'), has_exam=request.form.get('has_exam') == 'on'
         ))
         db.session.commit()
         flash('Ders eklendi!', 'success')
         return redirect(url_for('list_courses'))
     return render_template('add_course.html', departments=Department.query.all(), teachers=User.query.filter_by(role='teacher').all())
 
-# Derslik yönetimi
 @app.route('/classrooms', methods=['GET', 'POST'])
 @login_required
 def manage_classrooms():
@@ -151,7 +137,6 @@ def manage_classrooms():
         return redirect(url_for('manage_classrooms'))
     return render_template('classrooms.html', classrooms=Classroom.query.all())
 
-# Otomatik planlama
 @app.route('/planning/auto', methods=['POST'])
 @login_required
 def auto_planning():
@@ -167,16 +152,57 @@ def auto_planning():
         flash(f"Planlama hatası: {result.get('error')}", 'error')
         return jsonify({'success': False, 'error': result.get('error')})
 
+# --- GÜNCELLENMİŞ VE GÜVENLİ PROGRAM GÖRÜNTÜLEME ---
+# --- GÜNCELLENMİŞ PROGRAM GÖRÜNTÜLEME (HTML İLE UYUMLU) ---
 @app.route('/program')
 @login_required
 def programi_goruntule():
-    if current_user.is_admin(): schedules = ExamSchedule.query.all()
-    elif current_user.is_teacher(): schedules = ExamSchedule.query.filter_by(teacher_id=current_user.id).all()
+    if current_user.is_admin(): 
+        raw_schedules = ExamSchedule.query.all()
+    elif current_user.is_teacher(): 
+        raw_schedules = ExamSchedule.query.filter_by(teacher_id=current_user.id).all()
     elif current_user.is_student():
-        courses = Course.query.join(CourseStudent).filter(CourseStudent.student_no == current_user.username).all()
-        schedules = ExamSchedule.query.filter(ExamSchedule.course_id.in_([c.id for c in courses])).all()
-    else: schedules = []
-    return render_template('program.html', schedules=schedules)
+        try:
+            courses = Course.query.join(CourseStudent).filter(CourseStudent.student_no == current_user.username).all()
+            raw_schedules = ExamSchedule.query.filter(ExamSchedule.course_id.in_([c.id for c in courses])).all()
+        except:
+            raw_schedules = []
+    else: 
+        raw_schedules = []
+
+    # GRUPLAMA MANTIĞI: Aynı Tarih, Saat ve Sınıftakileri Birleştir
+    grouped_schedules = {}
+    
+    for sch in raw_schedules:
+        # Veri bütünlüğü kontrolü
+        if not sch.course or not sch.classroom: continue
+
+        key = (sch.exam_date, sch.start_time, sch.classroom_id)
+        
+        if key not in grouped_schedules:
+            grouped_schedules[key] = {
+                'date': sch.exam_date,
+                'time': sch.start_time,
+                'classroom': sch.classroom,
+                'additional_classrooms': sch.additional_classrooms,
+                'teacher': sch.teacher,
+                'courses': [sch.course],
+                'course_codes_str': sch.course.code,
+                'course_name': sch.course.name 
+            }
+        else:
+            if sch.course not in grouped_schedules[key]['courses']:
+                grouped_schedules[key]['courses'].append(sch.course)
+            
+            # Kodları yan yana ekle (BLM101, SEC130 gibi)
+            if sch.course.code not in grouped_schedules[key]['course_codes_str']:
+                grouped_schedules[key]['course_codes_str'] += f", {sch.course.code}"
+    
+    final_list = list(grouped_schedules.values())
+    final_list.sort(key=lambda x: (x['date'], x['time']))
+
+    # is_grouped=True parametresiyle gönderiyoruz
+    return render_template('program.html', schedules=final_list, is_grouped=True)
 
 @app.route('/cikti/<format_type>')
 @login_required
@@ -187,22 +213,22 @@ def cikti_al(format_type):
     elif format_type == 'excel': return send_file(excel_cikti_al(schedules), as_attachment=True, download_name='sinav_programi.xlsx')
     return redirect(url_for('programi_goruntule'))
 
-# --- GÜNCELLENMİŞ IMPORT FONKSİYONU (ana.py içine) ---
-#
-import unidecode 
-
+# --- BURASI YENİ YAPIDIR (PAKET FORMATINI ALIR) ---
 @app.route('/admin/import-pdfs', methods=['POST'])
 @login_required
 def import_pdfs():
     if not current_user.is_admin(): return redirect(url_for('dashboard'))
-    data_dir = 'data'
+    
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    data_dir = os.path.join(base_dir, 'data')
+
     if not os.path.exists(data_dir):
         flash(f"'{data_dir}' klasörü bulunamadı!", 'error')
         return redirect(url_for('dashboard'))
 
     try:
         default_dept_id = ensure_defaults()
-        # Verileri oku
+        # ARTIK STUDENTS_DATA {CODE: {STUDENTS: [], NAME: ""}} FORMATINDA
         students_data, proximity_data, tum_derslikler, room_capacities = import_all_data(data_dir)
         
         # 1. Derslikleri Kaydet
@@ -215,38 +241,36 @@ def import_pdfs():
                 else:
                     existing.capacity = kapasite
 
-        added_courses = 0
-        
-        # 2. Dersleri ve Öğrencileri Kaydet
-        for course_code, students in students_data.items():
+        # 2. Dersleri Kaydet
+        for course_code, data in students_data.items():
+            students = data['students']
+            course_name = data['name']
+            
             if not students: continue
             
-            # Ders Oluşturma
             course = Course.query.filter_by(code=course_code).first()
             if not course:
                 course = Course(
                     code=course_code,
-                    name=f"{course_code} Dersi",
+                    name=course_name, # MANUEL LİSTEDEN GELEN DOĞRU İSİM
                     department_id=default_dept_id,
                     exam_duration=60,
                     has_exam=True
                 )
                 db.session.add(course)
                 db.session.commit()
-                added_courses += 1
+            else:
+                course.name = course_name # İsim güncelle
+                db.session.commit()
             
-            # Öğrencileri Döngüye Al
+            # Öğrencileri Ekle
             for student in students:
-                # A) Öğrenciyi Derse Ekle (CourseStudent Tablosu)
                 exist = CourseStudent.query.filter_by(course_id=course.id, student_no=student['student_no']).first()
                 if not exist:
                     db.session.add(CourseStudent(course_id=course.id, student_no=student['student_no'], student_name=student['name']))
                 
-                # B) Öğrenciye HESAP Aç (User Tablosu) - ARTIK BAĞIMSIZ ÇALIŞIYOR
-                # Şifre: 123456
                 user_exist = User.query.filter_by(username=student['student_no']).first()
                 if not user_exist:
-                    # İsim boş gelirse "Ogrenci" yaz
                     std_name = student['name'] if student['name'] else "Ogrenci"
                     new_student_user = User(
                         username=student['student_no'],
@@ -259,7 +283,7 @@ def import_pdfs():
 
             course.student_count = len(students)
         
-        # 3. Yakınlıkları Kaydet
+        # Yakınlıklar
         for prox in proximity_data:
             c1 = Classroom.query.filter_by(name=prox['classroom1']).first()
             c2 = Classroom.query.filter_by(name=prox['classroom2']).first()
@@ -273,7 +297,7 @@ def import_pdfs():
         
         db.session.commit()
         
-        # 4. Hoca Hesaplarını Güncelle (Eksik varsa ekle)
+        # Hoca Hesapları
         teachers = ['Elif Pinar Hacibeyoglu', 'Cuneyt Yazici', 'Vildan Yazici', 'Orkun Karabatak']
         for t_name in teachers:
             u_name = unidecode.unidecode(t_name.lower().replace(' ', ''))
@@ -283,7 +307,6 @@ def import_pdfs():
                 db.session.add(t_user)
         db.session.commit()
         
-        # Derslere Hoca Atama (Eğer boşsa)
         import random
         all_courses = Course.query.all()
         all_teachers = User.query.filter_by(role='teacher').all()
@@ -294,8 +317,7 @@ def import_pdfs():
                     c.instructor_id = t.id
             db.session.commit()
 
-        msg = f'İşlem Tamam! Tüm eksik öğrenci ve hoca hesapları oluşturuldu.'
-        flash(msg, 'success')
+        flash(f'Tüm veriler başarıyla yüklendi!', 'success')
     
     except Exception as e:
         flash(f'Veri yükleme hatası: {str(e)}', 'error')
@@ -303,9 +325,6 @@ def import_pdfs():
 
     return redirect(url_for('dashboard'))
 
-
-
-# --- ÇOKLU GÜN DESTEKLİ FONKSİYON (ana.py) ---
 @app.route('/teacher/availability', methods=['GET', 'POST'])
 @login_required
 def teacher_availability():
@@ -313,67 +332,53 @@ def teacher_availability():
         flash('Bu sayfaya sadece hocalar girebilir!', 'error')
         return redirect(url_for('dashboard'))
     
-    # Hocanın derslerini bul
     my_courses = Course.query.filter_by(instructor_id=current_user.id).all()
-    
-    # Gün İsimleri
     day_names = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"]
-    
-    # Mevcut kısıtlamaları bul (Liste olarak)
-    blocked_days = [] # Örn: [1, 3] -> Salı ve Perşembe
+    blocked_days = []
     
     if my_courses:
-        # İlk dersin kısıtlarına bakmamız yeterli
         restrictions = InstructorAvailability.query.filter_by(course_id=my_courses[0].id).all()
         for r in restrictions:
             blocked_days.append(r.day_of_week)
 
     if request.method == 'POST':
         try:
-            # Formdan seçilen günleri liste olarak al (checkbox)
-            selected_days = request.form.getlist('unavailable_days') # ['0', '2'] gibi gelir
-            
-            # Önce tüm dersler için eski kısıtları temizle
+            selected_days = request.form.getlist('unavailable_days')
             for course in my_courses:
                 InstructorAvailability.query.filter_by(course_id=course.id).delete()
-                
-                # Yeni seçilen günleri ekle
                 for day_str in selected_days:
                     day_idx = int(day_str)
-                    av = InstructorAvailability(
-                        course_id=course.id,
-                        day_of_week=day_idx,
-                        start_time=time(0,0),
-                        end_time=time(23,59)
-                    )
+                    av = InstructorAvailability(course_id=course.id, day_of_week=day_idx, start_time=time(0,0), end_time=time(23,59))
                     db.session.add(av)
-            
             db.session.commit()
-            
-            if not selected_days:
-                flash('Tüm kısıtlamalar kaldırıldı. Artık her gün müsaitsiniz.', 'success')
-            else:
-                flash('Müsaitlik durumu güncellendi!', 'success')
-            
+            flash('Müsaitlik durumu güncellendi!', 'success')
             return redirect(url_for('teacher_availability'))
-            
         except Exception as e:
             db.session.rollback()
-            flash(f'Hata oluştu: {str(e)}', 'error')
+            flash(f'Hata: {str(e)}', 'error')
     
-    return render_template('teacher_availability.html', 
-                         courses=my_courses, 
-                         blocked_days=blocked_days,
-                         day_names=day_names)
+    return render_template('teacher_availability.html', courses=my_courses, blocked_days=blocked_days, day_names=day_names)
+
+# --- ANA.PY DOSYASININ EN ALTI ---
+
 
 if __name__ == '__main__':
     with app.app_context():
+        # 1. Eski veritabanını tamamen uçur (Hatayı çözen kısım)
+        print("⚠️ Eski veritabanı temizleniyor...")
+        db.drop_all()
+        
+        # 2. Yenisini tertemiz oluştur
+        print("✅ Yeni tablolar oluşturuluyor...")
         db.create_all()
+        
+        # 3. Admin hesabını tekrar aç
         if not User.query.filter_by(username='admin').first():
             admin = User(username='admin', email='admin@kostu.edu.tr', role='admin', name='Sistem Yöneticisi')
             admin.set_password('admin123')
             db.session.add(admin)
             db.session.commit()
+            print("👤 Admin hesabı oluşturuldu.")
+
+    print("🚀 Server başlatılıyor...")
     app.run(debug=True, port=5000)
-
-
